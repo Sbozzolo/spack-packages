@@ -18,7 +18,7 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
     git = "https://github.com/awslabs/palace.git"
     license("Apache-2.0")
 
-    maintainers("hughcars", "simlap", "cameronrutherford", "sbozzolo")
+    maintainers("hughcars", "simlap", "cameronrutherford", "sbozzolo", "phdum")
 
     version("develop", branch="main")
     version("0.15.0", tag="v0.15.0", commit="b6762777d85a06072fdf4cc96e8a365da73df170")
@@ -29,6 +29,13 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
 
     # Note: 'cuda' and 'cuda_arch' variants are added by the CudaPackage
     # Note: 'rocm' and 'amdgpu_target' variants are added by the ROCmPackage
+    variant(
+        "cxxstd",
+        default="17",
+        values=("17", "20"),
+        description="C++ standard",
+        when="@0.16:",
+    )
     variant("shared", default=True, description="Build shared libraries")
     variant("int64", default=False, description="Use 64 bit integers")
     variant("openmp", default=False, description="Use OpenMP for shared-memory parallelism")
@@ -51,6 +58,18 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
         default=True,
         description="Build with GSLIB library for high-order field interpolation",
     )
+    variant(
+        "asan",
+        default=False,
+        description="Build with address-sanitizer enabled (leads to severe loss of performance)",
+        when="@0.16:",
+    )
+    variant(
+        "coverage",
+        default=False,
+        description="Measure code coverage when running (leads to severe loss of performance)",
+        when="@0.16:",
+    )
 
     # Fix API mismatch between libxsmm@main and internal libceed build
     patch("palace-0.12.0.patch", when="@0.12")
@@ -65,13 +84,20 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
     depends_on("lapack")
     depends_on("zlib-api")
     depends_on("nlohmann-json")
+    depends_on("nlohmann-json-schema-validator@2.4.0:", when="@0.16:")
     depends_on("fmt+shared", when="+shared")
     depends_on("fmt~shared", when="~shared")
     depends_on("scnlib+shared", when="+shared@0.14:")
     depends_on("scnlib~shared", when="~shared@0.14:")
-    depends_on("eigen")
+    depends_on("eigen", type="build")
+    depends_on("lcov@1.15:", when="+coverage@0.16:", type="run")
 
     conflicts("~superlu-dist~strumpack~mumps", msg="Need at least one sparse direct solver")
+    conflicts(
+        "+asan",
+        when="platform=darwin %gcc",
+        msg="GCC does not support AddressSanitizer on macOS (Apple Silicon). Use Clang instead.",
+    )
 
     conflicts("^mumps+int64", msg="Palace requires MUMPS without 64 bit integers")
     with when("+mumps"):
@@ -142,18 +168,17 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
     # Use external blas/lapack with hypre
     depends_on("hypre+lapack")
 
+
     # NOTE: hypre+gpu-profiling is also useful: it adds NVTX annotations, which
     # are great for GPU profiling with Nsight.
 
     with when("@0.16:"):
         # +lapack means: use external lapack
         depends_on(
-            # TODO: update to v4.9 == d9d6526cc1749980a2ba1da16e2c1ca1e07d82ec once spack updated
-            # https://github.com/spack/spack-packages/pull/3040
-            "mfem+mpi+metis+lapack cxxstd=17 commit=d9d6526cc1749980a2ba1da16e2c1ca1e07d82ec",
+            "mfem+mpi+metis+lapack@4.9:",
             patches=[
-                patch("patch_par_tet_mesh_fix_dev.diff"),
-                patch("patch_gmsh_parser_performance.diff"),
+                "patch_par_tet_mesh_fix_dev.diff",
+                "patch_gmsh_parser_performance.diff"
             ],
         )
         depends_on("mfem+shared", when="+shared")
@@ -174,6 +199,7 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
         depends_on("mfem+exceptions", type="test")
 
         depends_on("mfem+libunwind", when="build_type=Debug")
+        depends_on("eigen@3.5:", type="build")
 
     with when("+libxsmm"):
         # NOTE: @=main != @main since libxsmm has a version main-2023-22
@@ -225,16 +251,17 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
         for var in ["openmpi", "mpich", "mvapich-plus"]:
             depends_on("hypre+gpu-aware-mpi", when=f"^[virtuals=mpi] {var}+cuda")
 
+        # We need https://github.com/llnl/blt/pull/735, which is not available
+        # in blt <= 0.7.1
+        depends_on("umpire %blt@0.7.2:", when="@0.16:")
+
         for arch in CudaPackage.cuda_arch_values:
             cuda_variant = f"+cuda cuda_arch={arch}"
 
-            # We need https://github.com/llnl/blt/pull/735, which is not available
-            # in blt <= 0.7.1
-            depends_on("umpire %blt@0.7.2:")
-
-            depends_on(f"umpire{cuda_variant}", when=f"{cuda_variant}")
-            depends_on(f"hypre+umpire{cuda_variant}", when=f"{cuda_variant}")
-            depends_on(f"mfem+umpire{cuda_variant}", when=f"{cuda_variant}")
+            depends_on(f"umpire{cuda_variant}", when=f"{cuda_variant} @0.16:")
+            depends_on(f"hypre+umpire{cuda_variant}", when=f"{cuda_variant} @0.16:")
+            depends_on(f"hypre{cuda_variant}", when=f"{cuda_variant} @:0.15")
+            depends_on(f"mfem+umpire{cuda_variant}", when=f"{cuda_variant} @0.16:")
             depends_on(f"magma{cuda_variant}", when=f"{cuda_variant}")
             depends_on(f"libceed{cuda_variant}", when=f"{cuda_variant} @0.14:")
             depends_on(f"sundials{cuda_variant}", when=f"+sundials{cuda_variant} @0.14:")
@@ -246,13 +273,14 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
     with when("+rocm"):
         for var in ["openmpi@5:", "mpich", "mvapich-plus"]:
             # GPU-aware MPI
-            depends_on("hypre+gpu-aware-mpi", when=f"^[virtuals=mpi] {var}+rocm")
+            depends_on(f"hypre+gpu-aware-mpi", when=f"^[virtuals=mpi] {var}+rocm")
 
         for arch in ROCmPackage.amdgpu_targets:
             rocm_variant = f"+rocm amdgpu_target={arch}"
-            depends_on(f"umpire{rocm_variant}", when=f"{rocm_variant}")
-            depends_on(f"hypre+umpire{rocm_variant}", when=f"{rocm_variant}")
-            depends_on(f"mfem+umpire{rocm_variant}", when=f"{rocm_variant}")
+            depends_on(f"umpire{rocm_variant}", when=f"{rocm_variant} @0.16:")
+            depends_on(f"hypre+umpire{rocm_variant}", when=f"{rocm_variant} @0.16:")
+            depends_on(f"hypre{rocm_variant}", when=f"{rocm_variant} @:0.15")
+            depends_on(f"mfem+umpire{rocm_variant}", when=f"{rocm_variant} @0.16:")
             depends_on(f"magma{rocm_variant}", when=f"{rocm_variant}")
             depends_on(f"libceed{rocm_variant}", when=f"{rocm_variant} @0.14:")
             depends_on(f"sundials{rocm_variant}", when=f"+sundials{rocm_variant} @0.14:")
@@ -265,6 +293,7 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
 
     def cmake_args(self):
         args = [
+            self.define_from_variant("CMAKE_CXX_STANDARD", "cxxstd"),
             self.define_from_variant("BUILD_SHARED_LIBS", "shared"),
             self.define_from_variant("PALACE_WITH_64BIT_INT", "int64"),
             self.define_from_variant("PALACE_WITH_ARPACK", "arpack"),
@@ -278,6 +307,8 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
             self.define_from_variant("PALACE_WITH_STRUMPACK", "strumpack"),
             self.define_from_variant("PALACE_WITH_SUNDIALS", "sundials"),
             self.define_from_variant("PALACE_WITH_SUPERLU", "superlu-dist"),
+            self.define_from_variant("PALACE_BUILD_WITH_COVERAGE", "coverage"),
+            self.define_from_variant("PALACE_BUILD_WITH_SANITIZERS", "asan"),
             self.define("PALACE_BUILD_EXTERNAL_DEPS", False),
             self.define("PALACE_MFEM_USE_EXCEPTIONS", self.run_tests),
         ]
@@ -288,8 +319,14 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
                 args.append(self.define("MUMPS_DIR", self.spec["mumps"].prefix))
             if self.spec.satisfies("+strumpack"):
                 args.append(self.define("STRUMPACK_DIR", self.spec["strumpack"].prefix))
+            if self.spec.satisfies("+mumps") or self.spec.satisfies("+strumpack"):
+                args.append(
+                    self.define("SCALAPACK_ROOT", self.spec["scalapack"].prefix)
+                )
             if self.spec.satisfies("+superlu-dist"):
-                args.append(self.define("SUPERLU_DIST_DIR", self.spec["superlu-dist"].prefix))
+                args.append(
+                    self.define("SUPERLU_DIST_DIR", self.spec["superlu-dist"].prefix)
+                )
             args.append(self.define("METIS_DIR", self.spec["metis"].prefix))
             args.append(self.define("PARMETIS_DIR", self.spec["parmetis"].prefix))
             args.append(self.define("HYPRE_DIR", self.spec["hypre"].prefix))
@@ -302,7 +339,9 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
             if self.spec.satisfies("+cuda"):
                 hypre_packages.append("CUDAToolkit")
 
-            args.append(self.define("HYPRE_REQUIRED_PACKAGES", ";".join(hypre_packages)))
+            args.append(
+                self.define("HYPRE_REQUIRED_PACKAGES", ";".join(hypre_packages))
+            )
 
             # MPI compiler wrappers are not required, but MFEM test builds need to know to link
             # against MPI libraries.
@@ -311,21 +350,36 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
                 if self.spec.satisfies("+openmp"):
                     superlu_packages.append("OpenMP")
                 args.append(
-                    self.define("SuperLUDist_REQUIRED_PACKAGES", ";".join(superlu_packages))
+                    self.define(
+                        "SuperLUDist_REQUIRED_PACKAGES", ";".join(superlu_packages)
+                    )
                 )
             if self.spec.satisfies("+sundials"):
                 sundials_packages = ["LAPACK", "BLAS", "MPI"]
                 if self.spec.satisfies("+openmp"):
                     sundials_packages.append("OpenMP")
-                args.append(self.define("SUNDIALS_REQUIRED_PACKAGES", ";".join(sundials_packages)))
+                args.append(
+                    self.define(
+                        "SUNDIALS_REQUIRED_PACKAGES", ";".join(sundials_packages)
+                    )
+                )
             if self.spec.satisfies("+strumpack"):
-                strumpack_packages = ["ParMETIS", "METIS", "LAPACK", "BLAS", "MPI", "MPI_Fortran"]
+                strumpack_packages = [
+                    "ParMETIS",
+                    "METIS",
+                    "LAPACK",
+                    "BLAS",
+                    "MPI",
+                    "MPI_Fortran",
+                ]
                 if self.spec.satisfies("+openmp"):
                     strumpack_packages.append("OpenMP")
                 if self.spec.satisfies("+cuda"):
                     strumpack_packages.append("CUDAToolkit")
                 args.append(
-                    self.define("STRUMPACK_REQUIRED_PACKAGES", ";".join(strumpack_packages))
+                    self.define(
+                        "STRUMPACK_REQUIRED_PACKAGES", ";".join(strumpack_packages)
+                    )
                 )
 
                 strumpack_libs = str(self.spec["scalapack"].libs).replace(" ", ";")
@@ -353,7 +407,9 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
                             recursive=True,
                         )
                     if butterflypack_libs:
-                        strumpack_libs += ";" + str(butterflypack_libs).replace(" ", ";")
+                        strumpack_libs += ";" + str(butterflypack_libs).replace(
+                            " ", ";"
+                        )
 
                 if self.spec.satisfies("^strumpack+zfp"):
                     zfp_libs = str(self.spec["zfp"].libs).replace(" ", ";")
@@ -375,7 +431,10 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
                     for lib_name in ["cublas", "cublaslt", "cusolver", "cudart"]:
                         try:
                             lib = find_libraries(
-                                f"lib{lib_name}", cuda_spec.prefix, shared=True, recursive=True
+                                f"lib{lib_name}",
+                                cuda_spec.prefix,
+                                shared=True,
+                                recursive=True,
                             )
                             if lib:
                                 cuda_libs.extend(lib)
@@ -396,7 +455,9 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
                 if self.spec.satisfies("+cuda"):
                     superlu_packages.append("CUDAToolkit")
                 args.append(
-                    self.define("SuperLUDist_REQUIRED_PACKAGES", ";".join(superlu_packages))
+                    self.define(
+                        "SuperLUDist_REQUIRED_PACKAGES", ";".join(superlu_packages)
+                    )
                 )
 
                 superlu_libs = ""
@@ -404,7 +465,9 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
                     cuda_libs = str(self.spec["cuda"].libs).replace(" ", ";")
                     superlu_libs = cuda_libs
                 if superlu_libs:
-                    args.append(self.define("SuperLUDist_REQUIRED_LIBRARIES", superlu_libs))
+                    args.append(
+                        self.define("SuperLUDist_REQUIRED_LIBRARIES", superlu_libs)
+                    )
 
             if self.spec.satisfies("+mumps"):
                 mumps_packages = [
@@ -418,7 +481,9 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
                 ]
                 if self.spec.satisfies("+openmp"):
                     mumps_packages.append("OpenMP")
-                args.append(self.define("MUMPS_REQUIRED_PACKAGES", ";".join(mumps_packages)))
+                args.append(
+                    self.define("MUMPS_REQUIRED_PACKAGES", ";".join(mumps_packages))
+                )
 
                 mumps_libs = str(self.spec["scalapack"].libs).replace(" ", ";")
                 if "gfortran" in self.compiler.fc:
@@ -431,21 +496,22 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
         if self.spec.satisfies("+cuda"):
             args.append(
                 self.define(
-                    "CMAKE_CUDA_ARCHITECTURES", ";".join(self.spec.variants["cuda_arch"].value)
+                    "CMAKE_CUDA_ARCHITECTURES",
+                    ";".join(self.spec.variants["cuda_arch"].value),
                 )
             )
 
         if self.spec.satisfies("+rocm"):
             args.append(
                 self.define(
-                    "CMAKE_HIP_ARCHITECTURES", ";".join(self.spec.variants["amdgpu_target"].value)
+                    "CMAKE_HIP_ARCHITECTURES",
+                    ";".join(self.spec.variants["amdgpu_target"].value),
                 )
             )
 
-        palace_with_gpu_aware_mpi = any(
-            self.spec.satisfies(f"{var}+cuda") or self.spec.satisfies(f"{var}+rocm")
-            for var in ["openmpi", "mpich", "mvapich-plus"]
-        )
+        palace_with_gpu_aware_mpi = any(self.spec.satisfies(f"{var}+cuda") or
+                                        self.spec.satisfies(f"{var}+rocm")
+                                        for var in ["openmpi", "mpich", "mvapich-plus"])
 
         args.append(self.define("PALACE_WITH_GPU_AWARE_MPI", palace_with_gpu_aware_mpi))
 
