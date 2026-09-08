@@ -209,6 +209,11 @@ class MakefileBuilder(makefile.MakefileBuilder):
         # always install libraries
         install_tree("lib", prefix.lib)
 
+        # The 1.x releases and main-2023 snapshot predate the relocation in
+        # the upstream install target.
+        if spec.satisfies("platform=darwin +shared"):
+            fix_darwin_install_name(prefix.lib)
+
         if spec.satisfies("+header-only"):
             install_tree("src", prefix.src)
 
