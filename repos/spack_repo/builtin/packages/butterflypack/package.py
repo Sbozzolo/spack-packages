@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
-from typing import ClassVar
-
 from spack_repo.builtin.build_systems.cmake import CMakePackage
 
 from spack.package import *
@@ -28,7 +26,7 @@ class Butterflypack(CMakePackage):
     url = "https://github.com/liuyangzhuan/ButterflyPACK/archive/v2.2.0.tar.gz"
     maintainers("liuyangzhuan")
 
-    tags: ClassVar = ["e4s"]
+    tags = ["e4s"]
 
     license("BSD-3-Clause-LBNL")
 
@@ -80,7 +78,7 @@ class Butterflypack(CMakePackage):
     )
     # Fix OpenMP-disabled builds.
     patch(
-        "https://github.com/liuyangzhuan/ButterflyPACK/pull/45.patch?full_index=1",
+        "https://github.com/liuyangzhuan/ButterflyPACK/commit/80a68716310a4bb47555b6c1605bebe85346569d.patch?full_index=1",
         sha256="cf6c3adb2563d9ef90303846915a65f3024771165a281a3dd915b6f4c2b2e8d7",
         when="@4.0.0:5.0.0",
     )
