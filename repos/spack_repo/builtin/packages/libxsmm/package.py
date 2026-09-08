@@ -152,8 +152,7 @@ class CMakeBuilder(cmake.CMakeBuilder):
 
 
 class MakefileBuilder(makefile.MakefileBuilder):
-    def build(self, pkg, spec, prefix):
-        # include symbols by default
+    def _make_args(self, spec, prefix):
         make_args = [
             f"CC={spack_cc}",
             f"CXX={spack_cxx}",
@@ -178,6 +177,12 @@ class MakefileBuilder(makefile.MakefileBuilder):
         if spec.satisfies("+large_jit_buffer"):
             make_args += ["CODE_BUF_MAXSIZE=262144"]
 
+        return make_args
+
+    def build(self, pkg, spec, prefix):
+        # include symbols by default
+        make_args = self._make_args(spec, prefix)
+
         if spec.satisfies("+shared"):
             make(*(make_args + ["STATIC=0"]))
 
@@ -185,6 +190,15 @@ class MakefileBuilder(makefile.MakefileBuilder):
         make(*make_args)
 
     def install(self, pkg, spec, prefix):
+        # The 2.x install target relocates installed libraries on macOS and
+        # Linux. The main-2023 snapshot predates this despite satisfying @2:.
+        if spec.satisfies("@2:") and not spec.satisfies("@main-2023-11"):
+            make_args = self._make_args(spec, prefix)
+            if spec.satisfies("+shared"):
+                make_args += ["STATIC=0"]
+            make("install", *make_args)
+            return
+
         install_tree("include", prefix.include)
 
         # move pkg-config files to their right place
@@ -194,17 +208,6 @@ class MakefileBuilder(makefile.MakefileBuilder):
 
         # always install libraries
         install_tree("lib", prefix.lib)
-
-        # On macOS the Makefile build bakes the build-tree path into each
-        # dylib's install name (LC_ID_DYLIB), so consumers record a
-        # spack-stage path that disappears after install and fail at load
-        # time with "Library not loaded". Rewrite the id to the final
-        # location. (No-op on Linux, which uses sonames + rpaths.)
-        if spec.satisfies("platform=darwin +shared"):
-            for lib in glob(join_path(prefix.lib, "libxsmm*.dylib")):
-                if not os.path.islink(lib):
-                    install_name_tool = which("install_name_tool")
-                    install_name_tool("-id", lib, lib)
 
         if spec.satisfies("+header-only"):
             install_tree("src", prefix.src)
