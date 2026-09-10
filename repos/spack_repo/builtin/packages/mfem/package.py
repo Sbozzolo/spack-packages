@@ -188,11 +188,11 @@ class Mfem(Package, CudaPackage, ROCmPackage):
     variant("libceed", default=False, description="Enable libCEED backend")
     variant("umpire", default=False, description="Enable Umpire support")
     variant("amgx", default=False, description="Enable NVIDIA AmgX solver support")
-    # cuDSS support was added after the MFEM 4.9 release.
+    # cuDSS support is backported to MFEM 4.9 for Palace 0.18.
     variant(
         "cudss",
         default=False,
-        when="@develop",
+        when="@4.9:",
         description="Enable NVIDIA cuDSS solver support",
     )
 
@@ -594,6 +594,14 @@ class Mfem(Package, CudaPackage, ROCmPackage):
     # patch is applied on top of it to fix that.
     # PR: https://github.com/mfem/mfem/pull/5224
     patch("mfem-4.9.patch", when="@4.9.0")
+    # Backport https://github.com/mfem/mfem/pull/5124.
+    patch(
+        "https://raw.githubusercontent.com/awslabs/palace/"
+        "b22f654ab36fe01f1f3176349c60626efed1a6a2/extern/patch/mfem/"
+        "mfem_pr5124_cudss.diff",
+        sha256="d0b5893ec7925cbc8a70cc5eba2abe037754b99b5bb366c4bae90f0583d22290",
+        when="@4.9.0+cudss",
+    )
 
     phases = ["configure", "build", "install"]
 
