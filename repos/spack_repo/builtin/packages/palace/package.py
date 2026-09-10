@@ -293,7 +293,6 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
             ],
         )
         depends_on("mfem+cudss", when="+cudss")
-        depends_on("mfem~cudss", when="~cudss")
         depends_on("cudss", when="+cudss")
         # Umpire 2026.07 requires C++20; Palace's GPU dependencies use C++17.
         depends_on("umpire@:2025.12", when="+cuda")
