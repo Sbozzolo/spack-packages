@@ -312,9 +312,15 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
         depends_on("cudss+mpi", when="+cudss")
 
     with when("+libxsmm"):
+        # Palace 0.18 requires LIBXSMM 2.x. Earlier releases build their
+        # bundled libCEED against the LIBXSMM main snapshot pinned in Palace's
+        # superbuild (cmake/ExternalGitTags.cmake), which predates the 2.0
+        # release; pin that exact commit for reproducible concretization.
         depends_on("libxsmm@2: blas=0", when="@0.18:")
-        # NOTE: @=main != @main since libxsmm has a version main-2023-22
-        depends_on("libxsmm@=main blas=0", when="@:0.17")
+        depends_on(
+            "libxsmm@main commit=ea0b20499a41377bab148257240adbbfe1b4a333 blas=0",
+            when="@:0.17",
+        )
         depends_on("libxsmm+debug", when="build_type=Debug")
         depends_on("libceed+libxsmm", when="@0.14:")
         # NOTE: libxsmm builds on MacOS have linker issues
