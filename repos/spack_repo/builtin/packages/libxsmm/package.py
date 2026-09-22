@@ -33,12 +33,6 @@ class Libxsmm(CMakePackage, MakefilePackage):
         commit="0d9be905527ba575c14ca5d3b4c9673916c868b2",
         deprecated=True,
     )
-    # Pre-2.0 main snapshots pinned by Palace's superbuild per release
-    # (cmake/ExternalGitTags.cmake); needed to build Palace <= 0.17.
-    version("main-2026-01", commit="ea0b20499a41377bab148257240adbbfe1b4a333")
-    version("main-2025-08", commit="3469aa806f4acef8f30c1241d5c2705713811b4c")
-    version("main-2025-06", commit="c77b70f74cae33f2779a96be70816bd3d03d5e52")
-    version("main-2024-05", commit="953405207f32369cd74d757681ce476fe89768b6")
     version("main", branch="main")
     version("2.1.0", sha256="704ed8f99b61a767798ed1ee1cadc5d185ca449f466a2bae37930f68c65961e9")
     version("2.0.0", sha256="7e532dc5520f864ce6d7f44f3fd50365e3edb23da97dbdc54fd53845d86a290b")
