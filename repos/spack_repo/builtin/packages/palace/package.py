@@ -313,13 +313,26 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
 
     with when("+libxsmm"):
         # Palace 0.18 requires LIBXSMM 2.x. Earlier releases build their
-        # bundled libCEED against the LIBXSMM main snapshot pinned in Palace's
-        # superbuild (cmake/ExternalGitTags.cmake), which predates the 2.0
-        # release; pin that exact commit for reproducible concretization.
+        # bundled libCEED against a specific LIBXSMM main-branch snapshot pinned
+        # per release in Palace's superbuild (cmake/ExternalGitTags.cmake),
+        # predating the 2.0 release. Pin the exact commit for each version so
+        # concretization is reproducible.
         depends_on("libxsmm@2: blas=0", when="@0.18:")
         depends_on(
             "libxsmm@main commit=ea0b20499a41377bab148257240adbbfe1b4a333 blas=0",
-            when="@:0.17",
+            when="@0.16:0.17",
+        )
+        depends_on(
+            "libxsmm@main commit=3469aa806f4acef8f30c1241d5c2705713811b4c blas=0",
+            when="@0.15",
+        )
+        depends_on(
+            "libxsmm@main commit=c77b70f74cae33f2779a96be70816bd3d03d5e52 blas=0",
+            when="@0.14",
+        )
+        depends_on(
+            "libxsmm@main commit=953405207f32369cd74d757681ce476fe89768b6 blas=0",
+            when="@:0.13",
         )
         depends_on("libxsmm+debug", when="build_type=Debug")
         depends_on("libceed+libxsmm", when="@0.14:")
