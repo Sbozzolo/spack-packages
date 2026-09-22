@@ -1,6 +1,5 @@
-# Copyright Spack Project Developers. See COPYRIGHT file for details.
-#
-# SPDX-License-Identifier: (Apache-2.0 OR MIT)
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 from spack_repo.builtin.build_systems.cmake import CMakePackage
 from spack_repo.builtin.build_systems.cuda import CudaPackage
@@ -18,9 +17,10 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
     git = "https://github.com/awslabs/palace.git"
     license("Apache-2.0")
 
-    maintainers("hughcars", "simlap", "cameronrutherford", "sbozzolo", "phdum")
+    maintainers("hughcars", "sbozzolo", "simlap")
 
     version("develop", branch="main")
+    version("0.18.1", tag="v0.18.1", commit="0dc74cdf8c36c58b69b21c4a06e816048ec0b83f")
     version("0.18.0", tag="v0.18.0", commit="b92aef83ecfe6d360c4b3d83e2122986297f6778")
     version("0.17.0", tag="v0.17.0", commit="12d8069afb5aa9e169a17e303d735e120968e9f2")
     version("0.16.1", tag="v0.16.1", commit="c13e409f255392b9d78369c386276cf9343c2205")
@@ -59,7 +59,7 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
     variant(
         "libxsmm",
         default=True,
-        sticky=True,
+        sticky=True,  # Do not silently turn this off
         description="Build with libxsmm backend for libCEED",
     )
     variant(
@@ -81,12 +81,19 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
     )
 
     # Fix API mismatch between libxsmm@main and internal libceed build
-    patch("palace-0.12.0.patch", when="@0.12")
+    patch(
+        "https://raw.githubusercontent.com/awslabs/palace/"
+        "b22f654ab36fe01f1f3176349c60626efed1a6a2/"
+        "spack_repo/local/packages/palace/palace-0.12.0.patch",
+        sha256="4e6c88ed21b91610f61f6586b7015900f535e0633ef26884f3f1f2f376b199a7",
+        when="@0.12",
+    )
 
     depends_on("c", type="build")
     depends_on("cxx", type="build")
-    depends_on("cmake@3.21:", type="build", when="@0.14:0.15")
-    depends_on("cmake@3.24:", type="build", when="@0.16:")
+    depends_on("cmake@3.18.1:", type="build", when="@0.11")
+    depends_on("cmake@3.21:", type="build", when="@0.12:0.14")
+    depends_on("cmake@3.24:", type="build", when="@0.15:")
     depends_on("pkgconfig", type="build")
     depends_on("mpi")
     depends_on("blas")
@@ -197,7 +204,7 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
     with when("@0.16:"):
         # +lapack means: use external lapack
         depends_on(
-            "mfem+mpi+metis+lapack@4.9:",
+            "mfem+mpi+metis+lapack@4.9.0",
             patches=[
                 # https://github.com/mfem/mfem/pull/3847
                 patch(
@@ -206,13 +213,16 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
                     "50ead1a9a785e3273b2a72ff59ac8ed8a496b498.diff",
                     sha256="e9be1a0d4b2642ed1b72f31c36065cf0aacbe342b6594d5d943782c73a6177f4",
                 ),
+                # https://github.com/mfem/mfem/commit/e4a2b9568c40f20e24612066d155cc6a9973b247
                 patch(
                     "https://github.com/mfem/mfem/commit/"
                     "e4a2b9568c40f20e24612066d155cc6a9973b247.diff",
                     sha256="6ced66f487780af66fb8184d329b9aad4b694e711b65830391e8c6d0c898713e",
                     when="@4.9.0",
                 ),
-                # Curated backport of https://github.com/mfem/mfem/pull/5246.
+                # Curated snapshots retain only the parts of these PRs that
+                # apply cleanly to MFEM 4.9.
+                # https://github.com/mfem/mfem/pull/5246
                 patch(
                     "https://raw.githubusercontent.com/awslabs/palace/"
                     "b22f654ab36fe01f1f3176349c60626efed1a6a2/extern/patch/mfem/"
@@ -220,33 +230,59 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
                     sha256="d5227c18768369b8fa3a20f4457dd378a360346850329ab1970d18ed5a73b0d6",
                     when="@4.9.0",
                 ),
-            ],
-        )
-        depends_on(
-            "mfem",
-            when="@0.16",
-            patches=[
-                patch(
-                    "https://raw.githubusercontent.com/awslabs/palace/"
-                    "c13e409f255392b9d78369c386276cf9343c2205/extern/patch/mfem/"
-                    "mfem_pr5280.diff",
-                    sha256="d5026c7f14a3bdc359f5a74b141bc02bfce6813195f54620aa1fe96fe6f865ea",
-                ),
-            ],
-        )
-        depends_on(
-            "mfem",
-            when="@0.17:",
-            patches=[
+                # https://github.com/mfem/mfem/pull/5353
+                # Remove once merged upstream and MFEM is bumped.
                 patch(
                     "https://raw.githubusercontent.com/awslabs/palace/"
                     "b22f654ab36fe01f1f3176349c60626efed1a6a2/extern/patch/mfem/"
                     "mfem_pr5353.diff",
                     sha256="c35f584090f97c84c12fc80e6d5c068512911d192132e18f5aa4254f507c5e4f",
                 ),
+                # https://github.com/mfem/mfem/pull/4983
+                patch(
+                    "https://raw.githubusercontent.com/awslabs/palace/"
+                    "b22f654ab36fe01f1f3176349c60626efed1a6a2/extern/patch/mfem/"
+                    "mfem_pr4983.diff",
+                    sha256="530532da3ae8815d004bb6ce19f6f08a1248c3d585503551c90d0eeae7fb3f87",
+                    when="@:4.9",
+                ),
+                # https://github.com/mfem/mfem/pull/5124
+                patch(
+                    "https://raw.githubusercontent.com/awslabs/palace/"
+                    "b22f654ab36fe01f1f3176349c60626efed1a6a2/extern/patch/mfem/"
+                    "mfem_pr5124_cudss.diff",
+                    sha256="d0b5893ec7925cbc8a70cc5eba2abe037754b99b5bb366c4bae90f0583d22290",
+                    when="@4.9.0 +cudss",
+                ),
+                # https://github.com/mfem/mfem/pull/5415
+                # Pulled directly from the PR head commit. Remove once merged
+                # upstream and MFEM is bumped.
+                patch(
+                    "https://github.com/mfem/mfem/commit/9d1438d8a2502cc927c63e093cf8c855ff17918e.diff",
+                    sha256="482655b6b740b880713d67bcca843571244b7d383c95e0cef3d3102b3327ff2f",
+                    when="@4.9.0",
+                ),
+                # https://github.com/mfem/mfem/pull/5494
+                # Source-only backport for MFEM 4.9.
+                patch(
+                    "https://raw.githubusercontent.com/awslabs/palace/"
+                    "1382ca5e9f72369b33c0ff5e8e0a244ac6597f6a/extern/patch/mfem/"
+                    "mfem_nc_partition_fixes.diff",
+                    sha256="a28bf879ecf197856d24ef5427d493f84a159224c22e7cd17ec977e06a222ffb",
+                    when="@4.9.0",
+                ),
+                # https://github.com/mfem/mfem/pull/5502
+                # NCMesh: fix 8-bit reference-counter overflow at high-valence
+                # vertices. Pulled directly from the PR head commit. Remove once
+                # merged upstream and MFEM is bumped.
+                patch(
+                    "https://github.com/mfem/mfem/commit/"
+                    "3091ba40b238c4008b67216314bb26da6738b833.diff",
+                    sha256="52ccf3332f87aaf7ebc84674448226201c04343a3e298006bea5fd8be8e92533",
+                    when="@4.9.0",
+                ),
             ],
         )
-
         depends_on("mfem+shared", when="+shared")
         depends_on("mfem~shared", when="~shared")
         depends_on("mfem+openmp", when="+openmp")
@@ -272,38 +308,13 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
         depends_on("eigen@3.5:", type="build")
 
     with when("@0.18:"):
-        depends_on(
-            "mfem",
-            patches=[
-                # https://github.com/mfem/mfem/pull/4983
-                patch(
-                    "https://raw.githubusercontent.com/awslabs/palace/"
-                    "b22f654ab36fe01f1f3176349c60626efed1a6a2/extern/patch/mfem/"
-                    "mfem_pr4983.diff",
-                    sha256="530532da3ae8815d004bb6ce19f6f08a1248c3d585503551c90d0eeae7fb3f87",
-                    when="@:4.9",
-                ),
-                # https://github.com/mfem/mfem/pull/5415
-                patch(
-                    "https://github.com/mfem/mfem/commit/"
-                    "9d1438d8a2502cc927c63e093cf8c855ff17918e.diff",
-                    sha256="482655b6b740b880713d67bcca843571244b7d383c95e0cef3d3102b3327ff2f",
-                    when="@4.9.0",
-                ),
-            ],
-        )
         depends_on("mfem+cudss", when="+cudss")
-        depends_on("cudss", when="+cudss")
-        # Umpire 2026.07 requires C++20; Palace's GPU dependencies use C++17.
-        depends_on("umpire@:2025.12", when="+cuda")
-        depends_on("umpire@:2025.12", when="+rocm")
-        # https://github.com/llnl/blt/pull/735
-        depends_on("umpire %blt@0.7.2:", when="+cuda")
+        depends_on("cudss+mpi", when="+cudss")
 
     with when("+libxsmm"):
+        depends_on("libxsmm@2: blas=0", when="@0.18:")
         # NOTE: @=main != @main since libxsmm has a version main-2023-22
         depends_on("libxsmm@=main blas=0", when="@:0.17")
-        depends_on("libxsmm@2: blas=0", when="@0.18:")
         depends_on("libxsmm+debug", when="build_type=Debug")
         depends_on("libceed+libxsmm", when="@0.14:")
         # NOTE: libxsmm builds on MacOS have linker issues
@@ -311,7 +322,18 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
         depends_on("libxsmm+shared")
 
     with when("@0.14:"):
-        depends_on("libceed@0.13:")
+        # The builtin recipe has no libCEED release newer than 0.12.0, so an open range
+        # resolves to an unpinned develop. Pin per Palace release. The 0.14-0.17 pins match
+        # cmake/ExternalGitTags.cmake; 0.18 uses the libCEED main merge of the same change
+        # (the superbuild commit predates libCEED's libxsmm 2.0 requirement).
+        depends_on("libceed@develop commit=204f3be0a8a44f14c6b90cf1319bc5c5bd195020", when="@0.14")
+        depends_on(
+            "libceed@develop commit=95bd1e908b16e04a70015e3a9a7fddec5e9c3fc8",
+            when="@0.15:0.17",
+        )
+        depends_on(
+            "libceed@develop commit=d6367d2d6a0cca608a0b8e21d79b83c50a49a19a", when="@0.18:"
+        )
         depends_on("libceed+openmp", when="+openmp")
         depends_on("libceed~openmp", when="~openmp")
         depends_on("libceed+shared", when="+shared")
@@ -346,6 +368,10 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
         depends_on("magma+shared", when="+shared")
         depends_on("magma~shared", when="~shared")
         depends_on("libceed+magma", when="@0.14:")
+
+    # Umpire 2026.07 requires C++20, while Palace's GPU dependencies use C++17.
+    depends_on("umpire@:2025.12", when="@0.16: +cuda")
+    depends_on("umpire@:2025.12", when="@0.16: +rocm")
 
     with when("+cuda"):
         # GPU-aware MPI
@@ -403,6 +429,7 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
             self.define_from_variant("PALACE_WITH_HIP", "rocm"),
             self.define_from_variant("PALACE_WITH_LIBXSMM", "libxsmm"),
             self.define_from_variant("PALACE_WITH_MUMPS", "mumps"),
+            self.define_from_variant("PALACE_WITH_CUDSS", "cudss"),
             self.define_from_variant("PALACE_WITH_OPENMP", "openmp"),
             self.define_from_variant("PALACE_WITH_SLEPC", "slepc"),
             self.define_from_variant("PALACE_WITH_STRUMPACK", "strumpack"),
@@ -412,23 +439,31 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
             self.define_from_variant("PALACE_BUILD_WITH_SANITIZERS", "asan"),
             self.define("PALACE_BUILD_EXTERNAL_DEPS", False),
             self.define("PALACE_MFEM_USE_EXCEPTIONS", self.run_tests),
+            # Pin the test suite's MPI ranks and OpenMP threads so CTest's
+            # PROCESSORS accounting (ranks x threads) is exact. Unit [Parallel]
+            # cases stay at 2 ranks (light, fast); regression cases use ~8 CPUs
+            # (fewer ranks shift tail eigenvalues past tolerance for some
+            # solvers); GPU builds run single-rank.
+            self.define("PALACE_TESTS_NUMPROC", 2),
+            self.define(
+                "PALACE_REGRESSION_NUMPROC",
+                1
+                if self.spec.satisfies("+cuda")
+                else (4 if self.spec.satisfies("+openmp") else 8),
+            ),
+            self.define("PALACE_TESTS_OMP_THREADS", 2 if self.spec.satisfies("+openmp") else 1),
         ]
-
-        if self.spec.satisfies("@0.18:"):
-            args.append(self.define_from_variant("PALACE_WITH_CUDSS", "cudss"))
-            if self.spec.satisfies("+cudss"):
-                args.append(self.define("CUDSS_DIR", self.spec["cudss"].prefix))
-            if self.spec.satisfies("+mumps") or self.spec.satisfies("+strumpack"):
-                args.append(self.define("SCALAPACK_DIR", self.spec["scalapack"].prefix))
 
         if self.spec.satisfies("@0.16:"):
             args.append(self.define("MFEM_DIR", self.spec["mfem"].prefix))
             if self.spec.satisfies("+mumps"):
                 args.append(self.define("MUMPS_DIR", self.spec["mumps"].prefix))
+            if self.spec.satisfies("+cudss"):
+                args.append(self.define("CUDSS_DIR", self.spec["cudss"].prefix))
             if self.spec.satisfies("+strumpack"):
                 args.append(self.define("STRUMPACK_DIR", self.spec["strumpack"].prefix))
             if self.spec.satisfies("+mumps") or self.spec.satisfies("+strumpack"):
-                args.append(self.define("SCALAPACK_ROOT", self.spec["scalapack"].prefix))
+                args.append(self.define("SCALAPACK_DIR", self.spec["scalapack"].prefix))
             if self.spec.satisfies("+superlu-dist"):
                 args.append(self.define("SUPERLU_DIST_DIR", self.spec["superlu-dist"].prefix))
             args.append(self.define("METIS_DIR", self.spec["metis"].prefix))
@@ -528,8 +563,6 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
                 # Add Fortran libraries
                 if "gfortran" in self.compiler.fc:
                     strumpack_libs += ";gfortran"
-                elif "ifx" in self.compiler.fc:
-                    strumpack_libs += ";ifport;ifcore"
 
                 args.append(self.define("STRUMPACK_REQUIRED_LIBRARIES", strumpack_libs))
             if self.spec.satisfies("+superlu-dist"):
@@ -571,12 +604,10 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
                 args.append(self.define("MUMPS_REQUIRED_LIBRARIES", mumps_libs))
 
         # We guarantee that there are arch specs with conflicts above
+        # Avoid CMake's default of emitting both cubin and PTX for every target.
         if self.spec.satisfies("+cuda"):
-            args.append(
-                self.define(
-                    "CMAKE_CUDA_ARCHITECTURES", ";".join(self.spec.variants["cuda_arch"].value)
-                )
-            )
+            cuda_arch = [f"{arch}-real" for arch in self.spec.variants["cuda_arch"].value]
+            args.append(self.define("CMAKE_CUDA_ARCHITECTURES", ";".join(cuda_arch)))
 
         if self.spec.satisfies("+rocm"):
             args.append(
@@ -586,7 +617,7 @@ class Palace(CMakePackage, CudaPackage, ROCmPackage):
             )
 
         palace_with_gpu_aware_mpi = any(
-            self.spec.satisfies(f"{var}+cuda") or self.spec.satisfies(f"{var}+rocm")
+            self.spec.satisfies(f"^{var}+cuda") or self.spec.satisfies(f"^{var}+rocm")
             for var in ["openmpi", "mpich", "mvapich-plus"]
         )
 
