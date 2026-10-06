@@ -103,6 +103,7 @@ class Strumpack(CMakePackage, CudaPackage, ROCmPackage):
     depends_on("hipsparse", type="link", when="@7.0.1: +rocm")
     depends_on("rocsolver", when="+rocm")
     depends_on("rocthrust", when="+rocm")
+    depends_on("rocprim", when="@8.1.0: +rocm")
     depends_on("slate", when="+slate")
     depends_on("magma+cuda", when="+magma+cuda")
     depends_on("magma+rocm", when="+magma+rocm")
@@ -206,6 +207,12 @@ class Strumpack(CMakePackage, CudaPackage, ROCmPackage):
             if "none" not in rocm_archs:
                 hipcc_flags.append(f"--amdgpu-target={','.join(rocm_archs)}")
             args.append(f"-DHIP_HIPCC_FLAGS={' '.join(hipcc_flags)}")
+            if spec.satisfies("@8.1.0:"):
+                # https://github.com/pghysels/STRUMPACK/pull/143 stopped linking
+                # roc::rocthrust, so its (header-only) include paths are no longer
+                # propagated, but FrontHIP.hip still includes <thrust/complex.h>.
+                incs = [spec["rocthrust"].prefix.include, spec["rocprim"].prefix.include]
+                args.append(self.define("CMAKE_HIP_FLAGS", " ".join(f"-I{i}" for i in incs)))
 
         if "%cce" in spec:
             # Assume the proper Cray CCE module (cce) is loaded:
