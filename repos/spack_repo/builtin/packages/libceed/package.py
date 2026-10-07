@@ -15,7 +15,7 @@ class Libceed(MakefilePackage, CudaPackage, ROCmPackage):
     homepage = "https://github.com/CEED/libCEED"
     git = "https://github.com/CEED/libCEED.git"
 
-    maintainers("jedbrown", "v-dobrev", "tzanio", "jeremylt")
+    maintainers("jedbrown", "v-dobrev", "tzanio", "jeremylt", "zatkins-dev")
 
     license("BSD-2-Clause")
 
