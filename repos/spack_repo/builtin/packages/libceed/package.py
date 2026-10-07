@@ -72,6 +72,15 @@ class Libceed(MakefilePackage, CudaPackage, ROCmPackage):
 
     patch("libceed-v0.8-hip.patch", when="@0.8+rocm")
     patch("pkgconfig-version-0.4.diff", when="@0.4")
+    # Find the LIBXSMM 2.x headers in include/libxsmm when MKLROOT is set
+    # https://github.com/CEED/libCEED/pull/2074
+    patch(
+        "https://github.com/CEED/libCEED/compare/"
+        "8a374e8d5d8d33fd19ce69a93026384ec1046a86..."
+        "5bcd48b31d8cafb1af6a385ec9184a1619888a26.diff?full_index=1",
+        sha256="414a584f48e6679e02d499f91d84a60cf339654324ac9e07d3168d0ce0d80883",
+        when="@1.0.0+libxsmm",
+    )
 
     # occa: do not occaFree kernels
     # Repeated creation and freeing of kernels appears to expose a caching
