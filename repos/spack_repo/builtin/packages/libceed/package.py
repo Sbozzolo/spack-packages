@@ -20,6 +20,7 @@ class Libceed(MakefilePackage, CudaPackage, ROCmPackage):
     license("BSD-2-Clause")
 
     version("develop", branch="main")
+    version("1.0.0", tag="v1.0.0", commit="8a374e8d5d8d33fd19ce69a93026384ec1046a86")
     version("0.12.0", tag="v0.12.0", commit="4018a20a98d451fac24765d3ddb936861647ce8d")
     version("0.11.0", tag="v0.11.0", commit="8ec64e9ae9d5df169dba8c8ee61d8ec8907b8f80")
     version("0.10.1", tag="v0.10.1", commit="74532b27052d94e943eb8bc76257fbd710103614")
@@ -135,14 +136,12 @@ class Libceed(MakefilePackage, CudaPackage, ROCmPackage):
                 makeopts += ["CUDA_DIR=%s" % spec["cuda"].prefix]
                 cuda_arch = spec.variants["cuda_arch"].value
                 if "none" not in cuda_arch:
-                    if spec.satisfies("@develop"):
+                    if spec.satisfies("@1:"):
                         cuda_targets = " ".join("sm_%s" % arch for arch in cuda_arch)
                         makeopts += ["CUDA_TARGETS=%s" % cuda_targets]
                     else:
                         if len(cuda_arch) != 1:
-                            raise InstallError(
-                                "multiple CUDA architectures require libceed@develop"
-                            )
+                            raise InstallError("multiple CUDA architectures require libceed@1:")
                         makeopts += ["CUDA_ARCH=sm_%s" % cuda_arch[0]]
                 if spec.satisfies("@:0.4"):
                     nvccflags = [
