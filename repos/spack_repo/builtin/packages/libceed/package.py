@@ -76,10 +76,9 @@ class Libceed(MakefilePackage, CudaPackage, ROCmPackage):
     # Find the LIBXSMM 2.x headers in include/libxsmm when MKLROOT is set
     # https://github.com/CEED/libCEED/pull/2074
     patch(
-        "https://github.com/CEED/libCEED/compare/"
-        "8a374e8d5d8d33fd19ce69a93026384ec1046a86..."
-        "5bcd48b31d8cafb1af6a385ec9184a1619888a26.diff?full_index=1",
-        sha256="414a584f48e6679e02d499f91d84a60cf339654324ac9e07d3168d0ce0d80883",
+        "https://github.com/CEED/libCEED/commit/"
+        "dfcf18c3829f9b97597f2c752d260571f94b3197.diff?full_index=1",
+        sha256="51043a20647ec31035da3f4d6c665c28467b00aa3ef196635fad383b6a6deb0a",
         when="@1.0.0+libxsmm",
     )
 
