@@ -78,7 +78,7 @@ class Libceed(MakefilePackage, CudaPackage, ROCmPackage):
         "https://github.com/CEED/libCEED/commit/"
         "dfcf18c3829f9b97597f2c752d260571f94b3197.diff?full_index=1",
         sha256="51043a20647ec31035da3f4d6c665c28467b00aa3ef196635fad383b6a6deb0a",
-        when="@1.0.0+libxsmm",
+        when="@=1.0.0+libxsmm",
     )
 
     # occa: do not occaFree kernels
